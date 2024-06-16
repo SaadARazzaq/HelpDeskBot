@@ -1,0 +1,297 @@
+<link href="//maxcdn.bootstrapcdn.com/bootstrap/4.1.1/css/bootstrap.min.css" rel="stylesheet" id="bootstrap-css">
+<script src="//maxcdn.bootstrapcdn.com/bootstrap/4.1.1/js/bootstrap.min.js"></script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chatbot</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.5.0/css/all.css" integrity="sha384-B4dIYHKNBt8Bc12p+WXckhzcICo0wtJAoU8YZTY5qE0Id1GSseTk6S+L3BlXeVIU" crossorigin="anonymous">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css')}}"/>
+</head>
+<body>
+    <div class="container-fluid h-100">
+        <div class="row h-100 no-gutters">
+            <div class="col-md-2 sidebar">
+                <!-- Left sidebar content here -->
+                <div class="card">
+                    <div class="card-header">
+                    </div>
+                    <div class="card-body">
+                        <h3>Text Instructions</h3>
+                        <textarea id="sidebarInput" class="form-control mb-2" placeholder="Enter text here"></textarea>
+                        <button type="button" id="sidebarSubmit" class="btn btn-primary btn-block">Save</button>
+                        <br>
+                        <h3>Choose your Model</h3>
+                        <select id="modelSelect" class="form-control">
+                            {% for model in models %}
+                                <option value="{{ model }}">{{ model }}</option>
+                            {% endfor %}
+                        </select>
+                        <br>
+                        <h3>RAG token Limit</h3>
+                        <input type="number" id="tokenLimit" class="form-control mb-2" placeholder="Enter token limit" />
+                        <button type="button" id="setTokenLimit" class="btn btn-primary btn-block">Set Token Limit</button>
+                        <br>
+                        <h3>RAG Response Limit</h3>
+                        <input type="number" id="responseLimit" class="form-control mb-2" placeholder="Enter response limit" />
+                        <button type="button" id="setResponseLimit" class="btn btn-primary btn-block">Set Response Limit</button>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-8 chat">
+                <div class="card">
+                    <div class="card-header msg_head">
+                        <div class="d-flex bd-highlight">
+                            <div class="img_cont">
+                                <img src="https://i.ibb.co/fSNP7Rz/icons8-chatgpt-512.png" class="rounded-circle user_img">
+                                <span class="online_icon"></span>
+                            </div>
+                            <div class="user_info">
+                                <span>ChatBot</span>
+                                <p>Ask me anything!</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="messageFormeight" class="card-body msg_card_body"></div>
+                    <div class="card-footer">
+                        <form id="messageArea" class="input-group">
+                            <input type="text" id="text" name="msg" placeholder="Type your message..." autocomplete="off" class="form-control type_msg" required/>
+                            <div class="input-group-append">
+                                <button type="submit" id="send" class="input-group-text send_btn"><i class="fas fa-location-arrow"></i></button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2 sidebar">
+                <!-- Right sidebar content here -->
+                <div class="card">
+                    <div class="card-header">
+                    </div>
+                    <div class="card-body">
+                        <h3>Upload Excel File</h3>
+                        <input type="file" id="excelFile" class="form-control mb-2" accept=".xlsx, .xls" />
+                        <button type="button" id="uploadExcel" class="btn btn-primary btn-block">Upload Excel File</button>
+                        <br>
+                        <h3>RAG Results</h3>
+                        <ul id="ragResults" class="list-group">
+                            <!-- RAG results will be dynamically added here -->
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    $(document).ready(function() {
+        function generateUniqueId() {
+            return 'id-' + Math.random().toString(36).substr(2, 16);
+        }
+
+        $("#messageArea").on("submit", function(event) {
+            event.preventDefault();
+
+            const date = new Date();
+            const hour = date.getHours();
+            const minute = date.getMinutes();
+            const str_time = hour + ":" + minute;
+            const rawText = $("#text").val();
+            const uniqueId = generateUniqueId();
+
+            var userHtml = '<div class="d-flex justify-content-end mb-4 user-message" id="' + uniqueId + '">' + 
+                '<div class="msg_cotainer_send">' + rawText + '<span class="msg_time_send">' + str_time + '</span></div>' + 
+                '<div class="img_cont_msg"><img src="https://i.ibb.co/d5b84Xw/Untitled-design.png" class="rounded-circle user_img_msg"></div>' + 
+                '<button class="edit_btn btn btn-secondary btn-sm">Edit</button>' +
+                '<button class="embed_btn btn btn-primary btn-sm">Embed</button></div>';
+            
+            $("#text").val("");
+            $("#messageFormeight").append(userHtml);
+
+            $.ajax({
+                data: { msg: rawText },
+                type: "POST",
+                url: "/get",
+            }).done(function(data) {
+                var botHtml = '<div class="d-flex justify-content-start mb-4 bot-message" id="response-' + uniqueId + '">' + 
+                    '<div class="img_cont_msg"><img src="https://i.ibb.co/fSNP7Rz/icons8-chatgpt-512.png" class="rounded-circle user_img_msg"></div>' + 
+                    '<div class="msg_cotainer">' + data + '<span class="msg_time">' + str_time + '</span></div></div>';
+                $("#messageFormeight").append($.parseHTML(botHtml));
+
+                // Store the chatbot response in a hidden element
+                $("#" + uniqueId).data("bot-response", data);
+            });
+        });
+
+        // Edit button functionality
+        $(document).on("click", ".edit_btn", function() {
+            var userMessageContainer = $(this).siblings(".msg_cotainer_send");
+            var userMessageId = $(this).parent().attr("id");
+            var botMessageContainer = $("#response-" + userMessageId).find(".msg_cotainer");
+            var currentMessage = userMessageContainer.contents().first().text().trim();
+            var newMessage = prompt("Edit your message:", currentMessage);
+
+            if (newMessage !== null) {
+                userMessageContainer.contents().first().replaceWith(newMessage);
+
+                // Update the corresponding bot message
+                $.ajax({
+                    data: { msg: newMessage },
+                    type: "POST",
+                    url: "/edit",
+                }).done(function(data) {
+                    botMessageContainer.contents().first().replaceWith(data.bot_msg);
+                    $("#" + userMessageId).data("bot-response", data.bot_msg);  // Update the stored bot response
+                });
+            }
+        });
+
+        // Embed button functionality
+        $(document).on("click", ".embed_btn", function() {
+            var userMessageContainer = $(this).siblings(".msg_cotainer_send");
+            var userMessage = userMessageContainer.contents().first().text().trim(); // Clean the message
+            var botResponse = $(this).parent().data("bot-response"); // Get the corresponding bot response
+
+            // Prompt the user to either embed or edit and embed
+            var choice = confirm("Do you want to embed the current messages? Press OK to embed or Cancel to edit and embed.");
+
+            if (choice) {
+                // Embed the current messages
+                $.ajax({
+                    data: { user_msg: userMessage, bot_msg: botResponse },
+                    type: "POST",
+                    url: "/embed",
+                }).done(function(response) {
+                    alert("Messages embedded successfully!");
+                });
+            } else {
+                // Edit and embed the messages
+                var newUserMessage = prompt("Edit your message:", userMessage);
+                if (newUserMessage !== null) {
+                    var newBotResponse = prompt("Edit the bot's response:", botResponse);
+                    if (newBotResponse !== null) {
+                        // Send the edited messages to the server
+                        $.ajax({
+                            data: { user_msg: newUserMessage, bot_msg: newBotResponse },
+                            type: "POST",
+                            url: "/embed",
+                        }).done(function(response) {
+                            alert("Edited messages embedded successfully!");
+                        });
+                    }
+                }
+            }
+        });
+
+        // Sidebar submit button functionality
+        $("#sidebarSubmit").on("click", function() {
+            var sidebarText = $("#sidebarInput").val().trim();
+            if (sidebarText) {
+                $.ajax({
+                    data: { msg: sidebarText },
+                    type: "POST",
+                    url: "/sendinstructions",
+                }).done(function(response) {
+                    alert("Sent instructions to the backend");
+                });
+            }
+        });
+
+        // Model selection functionality
+        $("#modelSelect").on("change", function() {
+            var selectedModel = $(this).val();
+            $.ajax({
+                data: { model: selectedModel },
+                type: "POST",
+                url: "/select_model",
+            }).done(function(response) {
+                alert("Model selected: " + selectedModel);
+            });
+        });
+
+        // Token limit submit button functionality
+        $("#setTokenLimit").on("click", function() {
+            var tokenLimit = $("#tokenLimit").val().trim();
+            if (tokenLimit && parseInt(tokenLimit) > 0) {
+                $.ajax({
+                    data: { token_limit: tokenLimit },
+                    type: "POST",
+                    url: "/set_token_limit",
+                }).done(function(response) {
+                    alert(response);
+                });
+            } else {
+                alert("Please enter a positive integer for the token limit.");
+            }
+        });
+
+        // Response limit submit button functionality
+        $("#setResponseLimit").on("click", function() {
+            var responseLimit = $("#responseLimit").val().trim();
+            if (responseLimit && parseInt(responseLimit) > 0) {
+                $.ajax({
+                    data: { response_limit: responseLimit },
+                    type: "POST",
+                    url: "/set_response_limit",
+                }).done(function(response) {
+                    alert(response);
+                });
+            } else {
+                alert("Please enter a positive integer for the response limit.");
+            }
+        });
+
+        // Excel file upload functionality
+        $("#uploadExcel").on("click", function() {
+            var fileInput = $("#excelFile")[0];
+            if (fileInput.files.length === 0) {
+                alert("Please choose an Excel file first.");
+                return;
+            }
+
+            var formData = new FormData();
+            formData.append("excel_file", fileInput.files[0]);
+
+            $.ajax({
+                url: "/upload_excel",
+                type: "POST",
+                data: formData,
+                processData: false,
+                contentType: false,
+            }).done(function(response) {
+                alert(response);
+            }).fail(function(jqXHR, textStatus, errorThrown) {
+                alert("File upload failed: " + errorThrown);
+            });
+        });
+
+        // Fetch and display RAG results
+        function fetchRagResults() {
+                $.get("/rag_results", function(data) {
+                    $("#ragResults").empty();
+                    data.forEach(function(result, index) {
+                        $("#ragResults").append("<li class='list-group-item'>" + result + "</li>");
+                    });
+                });
+        }
+
+        // Fetch RAG results initially and then every 5 seconds
+        fetchRagResults();
+        setInterval(fetchRagResults, 5000);
+
+        // Send chat message
+        $("#messageArea").submit(function(e) {
+            e.preventDefault();
+            var msg = $("#text").val();
+            $.post("/get", {msg: msg}, function(data) {
+                // Display response in the chat area (not shown here, implement as needed)
+            });
+        });
+    });
+</script>
+
+</body>
+</html>
